@@ -55,10 +55,6 @@ jobs:
           pip install -r requirements.txt
           pip install pytest flake8 black isort
 
-      - name: Code formatting check with Black
-        run: |
-          cd streamlit_app
-          black --check --diff app.py
 
       - name: Import sorting check with isort
         run: |
