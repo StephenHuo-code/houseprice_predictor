@@ -1,0 +1,205 @@
+name: Streamlit App CI/CD
+
+# 触发条件
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'streamlit_app/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'streamlit_app/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: false
+        default: 'latest'
+
+# 环境变量
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: streamlit-house-predictor
+
+jobs:
+  # 代码质量检查和测试
+  test:
+    name: Test and Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('streamlit_app/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          cd streamlit_app
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest flake8 black isort
+
+      - name: Code formatting check with Black
+        run: |
+          cd streamlit_app
+          black --check --diff app.py
+
+      - name: Import sorting check with isort
+        run: |
+          cd streamlit_app
+          isort --check-only --diff app.py
+
+      - name: Lint with flake8
+        run: |
+          cd streamlit_app
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Test Streamlit app syntax
+        run: |
+          cd streamlit_app
+          python -c "import streamlit as st; import app"
+
+  # Docker镜像构建和推送
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./streamlit_app
+          file: ./streamlit_app/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  # 安全扫描
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build-and-push.outputs.image-tag }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # 部署到测试环境（可选）
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, security-scan]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: staging
+
+    steps:
+      - name: Deploy to staging
+        run: |
+          echo "Deploying ${{ needs.build-and-push.outputs.image-tag }} to staging environment"
+          # 这里可以添加实际的部署脚本
+          # 例如：kubectl、docker-compose、或其他部署工具
+
+  # 部署到生产环境（可选）
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Deploying ${{ needs.build-and-push.outputs.image-tag }} to production environment"
+          # 这里可以添加实际的部署脚本
+
+  # 通知
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [test, build-and-push]
+    if: always()
+
+    steps:
+      - name: Notify on success
+        if: needs.test.result == 'success' && needs.build-and-push.result == 'success'
+        run: |
+          echo "✅ Streamlit app CI/CD completed successfully!"
+          echo "🐳 Docker image: ${{ needs.build-and-push.outputs.image-tag }}"
+
+      - name: Notify on failure
+        if: needs.test.result == 'failure' || needs.build-and-push.result == 'failure'
+        run: |
+          echo "❌ Streamlit app CI/CD failed!"
+          echo "Please check the logs for details."
