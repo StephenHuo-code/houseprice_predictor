@@ -20,6 +20,13 @@ on:
         required: false
         default: 'latest'
 
+# 添加权限配置
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
 # 环境变量
 env:
   REGISTRY: docker.io
@@ -107,7 +114,7 @@ jobs:
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          subject-name: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
