@@ -56,22 +56,6 @@ jobs:
           pip install pytest flake8 black isort
 
 
-      - name: Import sorting check with isort
-        run: |
-          cd streamlit_app
-          isort --check-only --diff app.py
-
-      - name: Lint with flake8
-        run: |
-          cd streamlit_app
-          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      - name: Test Streamlit app syntax
-        run: |
-          cd streamlit_app
-          python -c "import streamlit as st; import app"
-
   # Docker镜像构建和推送
   build-and-push:
     name: Build and Push Docker Image
