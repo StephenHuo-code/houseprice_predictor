@@ -71,13 +71,13 @@ jobs:
 
       - name: Train model with MLflow tracking
         env:
-          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}  # 可选，若有远程MLflow
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
           python src/models/train_model.py \
-            --input data/processed/featured_house_data.csv \
-            --preprocessor models/trained/preprocessor.pkl \
-            --mlflow-uri "${MLFLOW_TRACKING_URI:-file:./mlruns}" \
-            --output models/trained/model.pkl
+            --config configs/train_config.yaml \
+            --data data/processed/featured_house_data.csv \
+            --models-dir models/trained \
+            --mlflow-tracking-uri "${MLFLOW_TRACKING_URI:-file:./mlruns}"
 
       - name: Upload trained model
         uses: actions/upload-artifact@v4
