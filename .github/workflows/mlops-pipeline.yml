@@ -4,12 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: 'Which stage to run? (data, train, build, all)'
+        description: 'Which stage to run? (all, data, train, build)'
         required: true
         default: 'all'
-      build:
-        description: 'Run ID of previous workflow to fetch artifacts from (for build only)'
-        required: false
 
 jobs:
   data-processing:
@@ -54,8 +51,8 @@ jobs:
 
   model-training:
     if: ${{ github.event.inputs.stage == 'train' || github.event.inputs.stage == 'all' }}
-    needs: data-processing
     runs-on: ubuntu-latest
+    needs: ${{ github.event.inputs.stage == 'all' && 'data-processing' || '' }}
 
     steps:
       - name: Checkout code
@@ -73,6 +70,7 @@ jobs:
           pip install mlflow
 
       - name: Download processed data and preprocessor
+        if: ${{ github.event.inputs.stage == 'all' }}
         uses: actions/download-artifact@v4
         with:
           name: processed-and-featured-data
@@ -142,13 +140,14 @@ jobs:
 
   build-and-publish:
     if: ${{ github.event.inputs.stage == 'build' || github.event.inputs.stage == 'all' }}
-    needs: ${{ github.event.inputs.stage == 'all' && 'model-training' || '' }}
     runs-on: ubuntu-latest
+    needs: ${{ github.event.inputs.stage == 'all' && 'model-training' || '' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # all模式下直接用本workflow产物，build模式下用run-id下载历史产物
       - name: Download trained model from previous workflow
         if: ${{ github.event.inputs.stage == 'build' && github.event.inputs.build != '' }}
         uses: actions/download-artifact@v4
