@@ -76,14 +76,19 @@ jobs:
 
       - name: Start MLflow Tracking Server (Docker)
         run: |
-          # 创建 mlruns 目录并设置权限
-          mkdir -p ${{ github.workspace }}/mlruns
-          chmod 777 ${{ github.workspace }}/mlruns
+          # 在 GitHub Actions runner 上创建 /mlflow 目录并设置权限
+          sudo mkdir -p /mlflow/mlruns
+          sudo chmod 777 /mlflow/mlruns
+          sudo chown -R $(id -u):$(id -g) /mlflow
           
-          # 启动 MLflow 服务器，使用当前用户权限
+          # 也在工作目录创建 mlruns
+          mkdir -p ${{ github.workspace }}/mlruns
+          
+          # 启动 MLflow 服务器
           docker run -d --name mlflow-server \
             -p 5000:5000 \
-            -v ${{ github.workspace }}/mlruns:/mlflow/mlruns \
+            -v /mlflow/mlruns:/mlflow/mlruns \
+            -v ${{ github.workspace }}/mlruns:/backup/mlruns \
             -u $(id -u):$(id -g) \
             --rm \
             ghcr.io/mlflow/mlflow:v2.3.1 \
