@@ -2,11 +2,15 @@ name: MLOps Pipeline
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+    inputs:
+      stage:
+        description: 'Which stage to run? (data, train, build, all)'
+        required: true
+        default: 'all'
 
 jobs:
-  data-processing-and-feature-engineering:
+  data-processing:
+    if: ${{ github.event.inputs.stage == 'data' || github.event.inputs.stage == 'all' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -46,8 +50,9 @@ jobs:
             models/trained/preprocessor.pkl
 
   model-training:
+    if: ${{ github.event.inputs.stage == 'train' || github.event.inputs.stage == 'all' }}
+    needs: data-processing
     runs-on: ubuntu-latest
-    needs: data-processing-and-feature-engineering
 
     steps:
       - name: Checkout code
@@ -74,7 +79,7 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
           python src/models/train_model.py \
-            --config configs/train_config.yaml \
+            --config configs/model_config.yaml \
             --data data/processed/featured_house_data.csv \
             --models-dir models/trained \
             --mlflow-tracking-uri "${MLFLOW_TRACKING_URI:-file:./mlruns}"
@@ -88,8 +93,9 @@ jobs:
             mlruns/
 
   build-and-publish:
-    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.stage == 'build' || github.event.inputs.stage == 'all' }}
     needs: model-training
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
