@@ -76,16 +76,23 @@ jobs:
 
       - name: Start MLflow Tracking Server (Docker)
         run: |
+          # 创建 mlruns 目录并设置权限
+          mkdir -p ${{ github.workspace }}/mlruns
+          chmod 777 ${{ github.workspace }}/mlruns
+          
+          # 启动 MLflow 服务器，使用当前用户权限
           docker run -d --name mlflow-server \
             -p 5000:5000 \
             -v ${{ github.workspace }}/mlruns:/mlflow/mlruns \
+            -u $(id -u):$(id -g) \
             --rm \
             ghcr.io/mlflow/mlflow:v2.3.1 \
             mlflow server \
-              --backend-store-uri sqlite:///mlflow.db \
+              --backend-store-uri sqlite:///tmp/mlflow.db \
               --default-artifact-root /mlflow/mlruns \
               --host 0.0.0.0 \
               --port 5000
+          
           # 等待MLflow服务启动
           for i in {1..10}; do
             if curl -s http://127.0.0.1:5000; then
