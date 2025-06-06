@@ -89,8 +89,7 @@ jobs:
         with:
           name: trained-model
           path: |
-            models/trained/model.pkl
-            mlruns/
+            models/
 
   build-and-publish:
     if: ${{ github.event.inputs.stage == 'build' || github.event.inputs.stage == 'all' }}
