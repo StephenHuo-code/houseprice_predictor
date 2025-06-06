@@ -9,37 +9,32 @@ on:
         default: 'all'
 
 jobs:
+  # 全流程
   data-processing:
-    if: ${{ github.event.inputs.stage == 'data' || github.event.inputs.stage == 'all' }}
+    if: ${{ github.event.inputs.stage == 'all' }}
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.9'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Run data processing
         run: |
           python src/data/run_processing.py \
             --input data/raw/house_data.csv \
             --output data/processed/cleaned_house_data.csv
-
       - name: Run feature engineering
         run: |
           python src/features/engineer.py \
             --input data/processed/cleaned_house_data.csv \
             --output data/processed/featured_house_data.csv \
             --preprocessor models/trained/preprocessor.pkl
-
       - name: Upload processed data and preprocessor
         uses: actions/upload-artifact@v4
         with:
@@ -50,42 +45,31 @@ jobs:
             models/trained/preprocessor.pkl
 
   model-training:
-    if: ${{ github.event.inputs.stage == 'train' || github.event.inputs.stage == 'all' }}
+    if: ${{ github.event.inputs.stage == 'all' }}
+    needs: data-processing
     runs-on: ubuntu-latest
-    needs: ${{ github.event.inputs.stage == 'all' && 'data-processing' || '' }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.9'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install mlflow
-
       - name: Download processed data and preprocessor
-        if: ${{ github.event.inputs.stage == 'all' }}
         uses: actions/download-artifact@v4
         with:
           name: processed-and-featured-data
-
       - name: Start MLflow Tracking Server (Docker)
         run: |
-          # 在 GitHub Actions runner 上创建 /mlflow 目录并设置权限
           sudo mkdir -p /mlflow/mlruns
           sudo chmod 777 /mlflow/mlruns
           sudo chown -R $(id -u):$(id -g) /mlflow
-          
-          # 也在工作目录创建 mlruns
           mkdir -p ${{ github.workspace }}/mlruns
-          
-          # 启动 MLflow 服务器
           docker run -d --name mlflow-server \
             -p 5000:5000 \
             -v /mlflow/mlruns:/mlflow/mlruns \
@@ -98,8 +82,6 @@ jobs:
               --default-artifact-root /mlflow/mlruns \
               --host 0.0.0.0 \
               --port 5000
-          
-          # 等待MLflow服务启动
           for i in {1..10}; do
             if curl -s http://127.0.0.1:5000; then
               echo "MLflow server is up!"
@@ -109,7 +91,6 @@ jobs:
               sleep 3
             fi
           done
-
       - name: Train model with MLflow tracking
         env:
           MLFLOW_TRACKING_URI: http://127.0.0.1:5000
@@ -119,52 +100,36 @@ jobs:
             --data data/processed/featured_house_data.csv \
             --models-dir models \
             --mlflow-tracking-uri "http://127.0.0.1:5000"
-
       - name: Upload trained model
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
           path: |
             models/
-
       - name: Upload MLflow runs
         uses: actions/upload-artifact@v4
         with:
           name: mlruns
           path: /mlflow/mlruns/
-
       - name: Stop MLflow Tracking Server
         if: always()
         run: |
           docker stop mlflow-server || true
 
   build-and-publish:
-    if: ${{ github.event.inputs.stage == 'build' || github.event.inputs.stage == 'all' }}
+    if: ${{ github.event.inputs.stage == 'all' }}
+    needs: model-training
     runs-on: ubuntu-latest
-    needs: ${{ github.event.inputs.stage == 'all' && 'model-training' || '' }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # all模式下直接用本workflow产物，build模式下用run-id下载历史产物
-      - name: Download trained model from previous workflow
-        if: ${{ github.event.inputs.stage == 'build' && github.event.inputs.build != '' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: trained-model
-          path: .
-          run-id: ${{ github.event.inputs.build }}
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -173,7 +138,6 @@ jobs:
           tags: |
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -185,6 +149,142 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Image digest
+        run: echo "Image digest ${{ steps.meta.outputs.digest }}"
 
+  # 分阶段单独执行
+  data-processing-only:
+    if: ${{ github.event.inputs.stage == 'data' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.9'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run data processing
+        run: |
+          python src/data/run_processing.py \
+            --input data/raw/house_data.csv \
+            --output data/processed/cleaned_house_data.csv
+      - name: Run feature engineering
+        run: |
+          python src/features/engineer.py \
+            --input data/processed/cleaned_house_data.csv \
+            --output data/processed/featured_house_data.csv \
+            --preprocessor models/trained/preprocessor.pkl
+      - name: Upload processed data and preprocessor
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-and-featured-data
+          path: |
+            data/processed/cleaned_house_data.csv
+            data/processed/featured_house_data.csv
+            models/trained/preprocessor.pkl
+
+  model-training-only:
+    if: ${{ github.event.inputs.stage == 'train' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.9'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install mlflow
+      - name: Start MLflow Tracking Server (Docker)
+        run: |
+          sudo mkdir -p /mlflow/mlruns
+          sudo chmod 777 /mlflow/mlruns
+          sudo chown -R $(id -u):$(id -g) /mlflow
+          mkdir -p ${{ github.workspace }}/mlruns
+          docker run -d --name mlflow-server \
+            -p 5000:5000 \
+            -v /mlflow/mlruns:/mlflow/mlruns \
+            -v ${{ github.workspace }}/mlruns:/backup/mlruns \
+            -u $(id -u):$(id -g) \
+            --rm \
+            ghcr.io/mlflow/mlflow:v2.3.1 \
+            mlflow server \
+              --backend-store-uri sqlite:///tmp/mlflow.db \
+              --default-artifact-root /mlflow/mlruns \
+              --host 0.0.0.0 \
+              --port 5000
+          for i in {1..10}; do
+            if curl -s http://127.0.0.1:5000; then
+              echo "MLflow server is up!"
+              break
+            else
+              echo "Waiting for MLflow server..."
+              sleep 3
+            fi
+          done
+      - name: Train model with MLflow tracking
+        env:
+          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+        run: |
+          python src/models/train_model.py \
+            --config configs/model_config.yaml \
+            --data data/processed/featured_house_data.csv \
+            --models-dir models \
+            --mlflow-tracking-uri "http://127.0.0.1:5000"
+      - name: Upload trained model
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: |
+            models/
+      - name: Upload MLflow runs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlruns
+          path: /mlflow/mlruns/
+      - name: Stop MLflow Tracking Server
+        if: always()
+        run: |
+          docker stop mlflow-server || true
+
+  build-and-publish-only:
+    if: ${{ github.event.inputs.stage == 'build' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/houseprice-predictor
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Image digest
         run: echo "Image digest ${{ steps.meta.outputs.digest }}"
