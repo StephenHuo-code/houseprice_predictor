@@ -14,6 +14,7 @@ import logging
 from mlflow.tracking import MlflowClient
 import platform
 import sklearn
+import os
 
 # -----------------------------
 # Configure logging
@@ -145,6 +146,10 @@ def main(args):
 
         # Save model locally
         save_path = f"{args.models_dir}/trained/{model_name}.pkl"
+        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        
         joblib.dump(model, save_path)
         logger.info(f"Saved trained model to: {save_path}")
         logger.info(f"Final MAE: {mae:.2f}, R²: {r2:.4f}")
