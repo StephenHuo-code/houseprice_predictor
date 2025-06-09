@@ -300,6 +300,9 @@ jobs:
           path: .
           run-id: ${{ github.event.inputs.run_id }}
 
+
+      - name: List model files before build
+        run: ls -l models/trained/
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Log in to Docker Hub
