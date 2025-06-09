@@ -130,30 +130,28 @@ jobs:
         with:
           name: trained-model
 
-
-
-     # 添加详细的调试信息
+      # 添加详细的调试信息
       - name: Debug - Check current directory structure
         run: |
-        echo "=== Current working directory ==="
-        pwd
-        echo ""
-        echo "=== Root directory contents ==="
-        ls -la
-        echo ""
-        echo "=== Looking for models directory ==="
-        find . -name "models" -type d 2>/dev/null || echo "No models directory found"
-        echo ""
-        echo "=== Looking for any pkl files ==="
-        find . -name "*.pkl" 2>/dev/null || echo "No pkl files found"
-        echo ""
-        echo "=== Complete directory tree ==="
-        tree . 2>/dev/null || ls -R
+          echo "=== Current working directory ==="
+          pwd
+          echo ""
+          echo "=== Root directory contents ==="
+          ls -la
+          echo ""
+          echo "=== Looking for models directory ==="
+          find . -name "models" -type d 2>/dev/null || echo "No models directory found"
+          echo ""
+          echo "=== Looking for any pkl files ==="
+          find . -name "*.pkl" 2>/dev/null || echo "No pkl files found"
+          echo ""
+          echo "=== Complete directory tree ==="
+          tree . 2>/dev/null || ls -R
           
       - name: Verify model files
         run: |
           echo "Checking if model files exist..."
-          ls -la models/trained/
+          ls -la models/trained/ 2>/dev/null || echo "models/trained/ directory not found"
           test -f models/trained/house_price_model.pkl && echo "✅ house_price_model.pkl found" || echo "❌ house_price_model.pkl missing"
           test -f models/trained/preprocessor.pkl && echo "✅ preprocessor.pkl found" || echo "❌ preprocessor.pkl missing"
           
