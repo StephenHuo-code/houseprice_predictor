@@ -107,16 +107,38 @@ jobs:
           echo "Data: data/processed/featured_house_data.csv" 
           echo "Models-dir: models"
           echo "Expected save path: models/trained/house_price_model.pkl"
-      - name: Train model with MLflow tracking
+      - name: Train model with MLflow tracking (with debug)
         env:
           MLFLOW_TRACKING_URI: http://127.0.0.1:5000
         run: |
+          python -c "
+          import sys
+          print('Python executable:', sys.executable)
+          print('Python path:', sys.path)
+          import os
+          print('Current directory:', os.getcwd())
+          print('Directory contents:', os.listdir('.'))
+          if os.path.exists('models'):
+              print('models/ contents:', os.listdir('models'))
+          if os.path.exists('models/trained'):
+              print('models/trained/ contents:', os.listdir('models/trained'))
+          "
+          
           python src/models/train_model.py \
             --config configs/model_config.yaml \
             --data data/processed/featured_house_data.csv \
             --models-dir models \
-            --mlflow-tracking-uri "http://127.0.0.1:5000"
-            
+            --mlflow-tracking-uri "http://127.0.0.1:5000" \
+            2>&1 | tee training_output.log
+          
+          echo "=== Training completed, checking results ==="
+          echo "Training script exit code: $?"
+          echo ""
+          echo "=== Contents after training ==="
+          find . -name "*.pkl" -type f || echo "No pkl files found"
+          echo ""
+          echo "=== models/trained/ after training ==="
+          ls -la models/trained/
       - name: Upload trained model
         uses: actions/upload-artifact@v4
         with:
