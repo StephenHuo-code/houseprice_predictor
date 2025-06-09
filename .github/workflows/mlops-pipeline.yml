@@ -144,7 +144,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
-          path: models/trained/
+          path: |
+           models/trained/house_price_model.pkl
+
 
       - name: Upload MLflow runs
         uses: actions/upload-artifact@v4
@@ -173,7 +175,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: trained-model
-          path: models/
+          path: models/trained/
 
       # 添加详细的调试信息
       - name: Debug - Check current directory structure
