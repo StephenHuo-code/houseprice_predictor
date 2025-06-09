@@ -113,7 +113,7 @@ jobs:
         with:
           name: trained-model
           path: |
-            models/
+            models/trained/
       - name: Upload MLflow runs
         uses: actions/upload-artifact@v4
         with:
@@ -131,16 +131,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # 分阶段时自动下载上游产物
-      - name: Download trained model from previous workflow
-        if: ${{ github.event.inputs.stage == 'build' && github.event.inputs.run_id != '' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: trained-model
-          path: models/trained
-          run-id: ${{ github.event.inputs.run_id }}
-
 
       - name: List model files before build
         run: ls -l models/trained/    
@@ -273,7 +263,7 @@ jobs:
         with:
           name: trained-model
           path: |
-            models/
+            models/trained/
       - name: Upload MLflow runs
         uses: actions/upload-artifact@v4
         with:
