@@ -101,7 +101,7 @@ jobs:
         with:
           name: trained-model
           path: |
-            models/trained/
+            models
       - name: Upload MLflow runs
         uses: actions/upload-artifact@v4
         with:
