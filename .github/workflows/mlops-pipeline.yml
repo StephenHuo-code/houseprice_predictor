@@ -138,7 +138,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: trained-model
-          path: .
+          path: models/trained
           run-id: ${{ github.event.inputs.run_id }}
 
       - name: Set up Docker Buildx
