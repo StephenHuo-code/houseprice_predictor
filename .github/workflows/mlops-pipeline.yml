@@ -139,11 +139,13 @@ jobs:
           echo ""
           echo "=== models/trained/ after training ==="
           ls -la models/trained/
+          
       - name: Upload trained model
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
-          path: models/trained/house_price_model.pkl
+          path: |
+            models/trained/house_price_model.pkl
 
       - name: Upload MLflow runs
         uses: actions/upload-artifact@v4
