@@ -120,8 +120,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: List model files before build
-        run: ls -l models/trained/    
+      - name: Download processed data and preprocessor
+        uses: actions/download-artifact@v4
+        with:
+          name: processed-and-featured-data
+          
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          
+      - name: Verify model files
+        run: |
+          echo "Checking if model files exist..."
+          ls -la models/trained/
+          test -f models/trained/house_price_model.pkl && echo "✅ house_price_model.pkl found" || echo "❌ house_price_model.pkl missing"
+          test -f models/trained/preprocessor.pkl && echo "✅ preprocessor.pkl found" || echo "❌ preprocessor.pkl missing"
+          
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Log in to Docker Hub
