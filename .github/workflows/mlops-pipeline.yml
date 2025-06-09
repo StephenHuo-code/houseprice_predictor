@@ -297,7 +297,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v2 
         with:
           name: trained-model
-          path: models/trained
+          path: models
           run_id: ${{ github.event.inputs.run_id }}
 
 
