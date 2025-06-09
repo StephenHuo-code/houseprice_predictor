@@ -298,7 +298,7 @@ jobs:
         with:
           name: trained-model
           path: models/trained
-          run-id: ${{ github.event.inputs.run_id }}
+          run_id: ${{ github.event.inputs.run_id }}
 
 
       - name: List model files before build
